@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
+import e3nn
+e3nn.set_optimization_defaults(jit_script_fx=False)
+
 from e3nn import o3
+# from torch_runstats.scatter import scatter_mean
 from utils import scatter_mean
 
 
@@ -58,44 +62,24 @@ class SimpleNetwork(nn.Module):
       self.sph = o3.SphericalHarmonics(irreps_out=o3.Irreps.spherical_harmonics(self.sh_lmax), normalize=True, normalization="norm")
       
       
-      # Currently hardcoding 2 layers
+      # Currently hardcoding 1 layer
       
       print("node_features_irreps", node_features_irreps)
       
-      # Layer 0
-      self.tp = o3.experimental.FullTensorProductv2(relative_vectors_irreps.regroup(),
-                                                    node_features_irreps.regroup(),
-                                                    filter_ir_out=[o3.Irrep(f"{l}e") for l in range(self.lmax+1)] + [o3.Irrep(f"{l}o") for l in range(self.lmax+1)])
+      self.tp = o3.FullTensorProduct(relative_vectors_irreps.regroup(),
+                                     node_features_irreps.regroup(),
+                                    filter_ir_out=[o3.Irrep(f"{l}e") for l in range(self.lmax+1)] + [o3.Irrep(f"{l}o") for l in range(self.lmax+1)])
       self.linear = o3.Linear(irreps_in=self.tp.irreps_out.regroup(), irreps_out=self.tp.irreps_out.regroup())
       print("TP+Linear", self.linear.irreps_out)
       self.mlp = MLP(input_dims =  1, # Since we are inputing the norms will always be (..., 1)
                      output_dims = self.tp.irreps_out.num_irreps)
 
 
-      self.elementwise_tp = o3.experimental.ElementwiseTensorProductv2(o3.Irreps(f"{self.tp.irreps_out.num_irreps}x0e"), self.linear.irreps_out.regroup())
+      self.elementwise_tp = o3.ElementwiseTensorProduct(o3.Irreps(f"{self.tp.irreps_out.num_irreps}x0e"), self.linear.irreps_out.regroup())
       print("node feature broadcasted", self.elementwise_tp.irreps_out)
 
-
-      # Layer 1
-      node_features_irreps = self.elementwise_tp.irreps_out
-
-      print("node_features_irreps", node_features_irreps)
-      self.tp2 = o3.experimental.FullTensorProductv2(relative_vectors_irreps.regroup(),
-                                                    node_features_irreps.regroup(),
-                                                    filter_ir_out=[o3.Irrep(f"{l}e") for l in range(self.lmax+1)] + [o3.Irrep(f"{l}o") for l in range(self.lmax+1)])
-      self.linear2 = o3.Linear(irreps_in=self.tp2.irreps_out.regroup(), irreps_out=self.tp2.irreps_out.regroup())
-      print("Layer 1 TP+Linear", self.linear2.irreps_out)
-      self.mlp2 = MLP(input_dims =  1, # Since we are inputing the norms will always be (..., 1)
-                     output_dims = self.tp2.irreps_out.num_irreps)
-
-      
-      print(f"Layer 1 scalars {self.tp2.irreps_out.num_irreps}x0e")
-      print(f"Layer 1 node_features {self.linear2.irreps_out.regroup()}")
-      self.elementwise_tp2 = o3.experimental.ElementwiseTensorProductv2(o3.Irreps(f"{self.tp2.irreps_out.num_irreps}x0e"), self.linear2.irreps_out.regroup())
-      print("Layer 1 node feature broadcasted", self.elementwise_tp2.irreps_out)
-      
       # Poor mans filter function (Can already feel the judgement). Replicating irreps_array.filter("0e")
-      self.filter_tp = o3.experimental.FullTensorProductv2(self.tp.irreps_out.regroup(), o3.Irreps("0e"), filter_ir_out=[o3.Irrep("0e")])
+      self.filter_tp = o3.FullTensorProduct(self.tp.irreps_out.regroup(), o3.Irreps("0e"), filter_ir_out=[o3.Irrep("0e")])
       self.register_buffer("dummy_input", torch.ones(1))
 
       print("aggregated node features", self.filter_tp.irreps_out)
@@ -117,7 +101,7 @@ class SimpleNetwork(nn.Module):
         relative_vectors_norm = torch.linalg.norm(relative_vectors, axis=-1, keepdims=True)
 
 
-        # Currently harcoding 2 hops
+        # Currently harcoding 1 hop
 
 
         # Layer 0
@@ -140,21 +124,8 @@ class SimpleNetwork(nn.Module):
         # Aggregate the node features back.
         node_features = scatter_mean(
             node_features_broadcasted,
-            index=receivers,
-            output_dim = node_features.shape[0]
-        )
-
-        # Layer 1
-        node_features_broadcasted = node_features[senders]
-
-        tp2 = self.tp2(relative_vectors_sh, node_features_broadcasted)
-        tp2 = self.linear2(tp2)
-        scalars2 = self.mlp2(relative_vectors_norm)
-        node_features_broadcasted = self.elementwise_tp2(scalars2, tp2)
-        node_features = scatter_mean(
-            node_features_broadcasted,
-            index=receivers,
-            output_dim = node_features.shape[0]
+            receivers,
+            dim = node_features.shape[0]
         )
 
         # # Global readout.

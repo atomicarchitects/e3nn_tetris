@@ -1,2 +1,5 @@
+torch
 e3nn @ git+https://github.com/mitkotak/e3nn@linear_pt2
 torch-geometric
+torch-cluster
+torch_runstats
