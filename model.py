@@ -64,25 +64,25 @@ class SimpleNetwork(nn.Module):
       
       # Currently hardcoding 1 layer
       
-      print("node_features_irreps", node_features_irreps)
+    #   print("node_features_irreps", node_features_irreps)
       
       self.tp = o3.FullTensorProduct(relative_vectors_irreps.regroup(),
                                      node_features_irreps.regroup(),
                                     filter_ir_out=[o3.Irrep(f"{l}e") for l in range(self.lmax+1)] + [o3.Irrep(f"{l}o") for l in range(self.lmax+1)])
       self.linear = o3.Linear(irreps_in=self.tp.irreps_out.regroup(), irreps_out=self.tp.irreps_out.regroup())
-      print("TP+Linear", self.linear.irreps_out)
+    #   print("TP+Linear", self.linear.irreps_out)
       self.mlp = MLP(input_dims =  1, # Since we are inputing the norms will always be (..., 1)
                      output_dims = self.tp.irreps_out.num_irreps)
 
 
       self.elementwise_tp = o3.ElementwiseTensorProduct(o3.Irreps(f"{self.tp.irreps_out.num_irreps}x0e"), self.linear.irreps_out.regroup())
-      print("node feature broadcasted", self.elementwise_tp.irreps_out)
+    #   print("node feature broadcasted", self.elementwise_tp.irreps_out)
 
       # Poor mans filter function (Can already feel the judgement). Replicating irreps_array.filter("0e")
       self.filter_tp = o3.FullTensorProduct(self.tp.irreps_out.regroup(), o3.Irreps("0e"), filter_ir_out=[o3.Irrep("0e")])
       self.register_buffer("dummy_input", torch.ones(1))
 
-      print("aggregated node features", self.filter_tp.irreps_out)
+    #   print("aggregated node features", self.filter_tp.irreps_out)
 
       self.readout_mlp = MLP(input_dims = self.filter_tp.irreps_out.num_irreps,
                              output_dims = self.output_dims)
@@ -122,6 +122,9 @@ class SimpleNetwork(nn.Module):
 
 
         # Aggregate the node features back.
+        # print("src", node_features_broadcasted.shape)
+        # print("index", receivers.shape)
+        # print("dim", node_features.shape[0])
         node_features = scatter_mean(
             node_features_broadcasted,
             receivers,

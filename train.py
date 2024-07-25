@@ -17,17 +17,16 @@ model = SimpleNetwork(
 
 model = torch.compile(model, fullgraph=True)
 
-# model(graph.numbers,
-#     graph.relative_vectors,
-#     graph.edge_index,
-#     graph.num_nodes)
+model(graph.numbers,
+    graph.relative_vectors,
+    graph.edge_index,
+    graph.num_nodes)
 
-# Currently turning off since Linear still needs weights
-# Also need confirm that the model is working
-model = torch.export.export(model,
-                            (graph.numbers,
-                            graph.relative_vectors,
-                            graph.edge_index,
-                            graph.num_nodes))
+
+# model = torch.export.export(model,
+#                             (graph.numbers,
+#                             graph.relative_vectors,
+#                             graph.edge_index,
+#                             graph.num_nodes))
 
 
