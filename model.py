@@ -136,5 +136,5 @@ class SimpleNetwork(nn.Module):
         # Filter out 0e
         node_features = self.filter_tp(node_features, self.dummy_input)
 
-        graph_globals = scatter_mean(node_features, output_dim=[num_nodes])
+        graph_globals = scatter_mean(node_features, dim=[num_nodes])
         return self.readout_mlp(graph_globals)
