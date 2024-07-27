@@ -1,5 +1,5 @@
 import torch
-from torch_geometric.data import Data, Batch
+from torch_geometric.data import Data, DataLoader
 from torch_geometric.nn import radius_graph
 
 def get_random_graph(nodes, cutoff) -> Data:
@@ -28,8 +28,10 @@ def get_random_graph(nodes, cutoff) -> Data:
 
     return graph
 
-def get_tetris() -> Batch:
-    pos = [
+def get_tetris():
+    """Get the Tetris dataset."""
+    
+    all_positions = [
         [[0, 0, 0], [0, 0, 1], [1, 0, 0], [1, 1, 0]],  # chiral_shape_1
         [[1, 1, 1], [1, 1, 2], [2, 1, 1], [2, 0, 1]],  # chiral_shape_2
         [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]],  # square
@@ -39,23 +41,20 @@ def get_tetris() -> Batch:
         [[0, 0, 0], [0, 0, 1], [0, 0, 2], [0, 1, 1]],  # T
         [[0, 0, 0], [1, 0, 0], [1, 1, 0], [2, 1, 0]],  # zigzag
     ]
-    pos = torch.tensor(pos, dtype=torch.float32)
-    labels = torch.arange(8)
-
-    graphs = []
-
-    for p, l in zip(pos, labels):
-        edge_index = radius_graph(p, r=1.1)
-        data = Data(pos=pos,
-                    y=l,
-                    edge_index = edge_index,
-                    relative_vectors = p[edge_index[0]] - p[edge_index[1]],
-                    num_nodes = 4)
-
-        graphs.append(data)
-
-    batch = Batch.from_data_list(graphs)
-    batch.pos = batch.pos.view(-1, 3)
-    batch.relative_vectors = batch.relative_vectors.view(-1, 3)
+    all_positions = torch.tensor(all_positions, dtype=torch.float32)
+    all_labels = torch.arange(8)
     
-    return batch 
+    graphs = []
+    for positions, label in zip(all_positions, all_labels):
+        edge_index = radius_graph(positions, r=1.1)
+        senders, receivers = edge_index
+        
+        data = Data(
+            numbers=torch.ones((len(positions),), dtype=torch.int32),  # node features
+            pos=positions,  # node positions
+            edge_index=edge_index,  # edge indices
+            y=label  # graph label
+        )
+        graphs.append(data)
+    
+    return next(iter(DataLoader(graphs, batch_size=len(graphs))))

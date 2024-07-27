@@ -89,14 +89,14 @@ class SimpleNetwork(nn.Module):
                              output_dims = self.output_dims)
 
     def forward(self,
-                labels: torch.Tensor,
-                relative_vectors: torch.Tensor,
+                numbers: torch.Tensor,
+                pos: torch.Tensor,
                 edge_index: torch.Tensor,
                 num_nodes: int) -> torch.Tensor:
 
-        node_features = self.embed(labels)
-        relative_vectors = relative_vectors
+        node_features = self.embed(numbers)
         senders, receivers = edge_index
+        relative_vectors = pos[receivers] - pos[senders]
 
         relative_vectors_sh = self.sph(relative_vectors)
         relative_vectors_norm = torch.linalg.norm(relative_vectors, axis=-1, keepdims=True)
@@ -104,18 +104,16 @@ class SimpleNetwork(nn.Module):
 
         # Currently harcoding 1 hop
 
-
         # Layer 0
     
         # Tensor product of the relative vectors and the neighbouring node features.
         node_features_broadcasted = node_features[senders]
-
+  
         tp = self.tp(relative_vectors_sh, node_features_broadcasted)
 
 
         # Apply linear
         tp = self.linear(tp)
-
 
         # Simply multiply each irrep by a learned scalar, based on the norm of the relative vector.
         scalars = self.mlp(relative_vectors_norm)
@@ -139,5 +137,5 @@ class SimpleNetwork(nn.Module):
         graph_globals = scatter_mean(node_features,
                                     torch.zeros(num_nodes, dtype=torch.int64),
                                     dim=0,
-                                    dim_size=1)
+                                    dim_size=8)
         return self.readout_mlp(graph_globals)
