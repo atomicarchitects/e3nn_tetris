@@ -1,8 +1,8 @@
 import torch
 from torch_geometric.data import Data, Batch
-from torch_geometric.transforms import RadiusGraph
+from torch_geometric.nn import radius_graph
 
-def get_random_graph(nodes, cutoff):
+def get_random_graph(nodes, cutoff) -> Data:
 
     positions = torch.randn(nodes, 3)
 
@@ -21,7 +21,7 @@ def get_random_graph(nodes, cutoff):
     graph = Data(
         pos = positions,
         relative_vectors = positions[receivers] - positions[senders],
-        numbers=z,
+        y=z,
         edge_index=edge_index,
         num_nodes=len(positions)
     )
@@ -43,12 +43,19 @@ def get_tetris() -> Batch:
     labels = torch.arange(8)
 
     graphs = []
-    radius_graph = RadiusGraph(r=1.1)
 
     for p, l in zip(pos, labels):
-        data = Data(pos=p, y=l)
-        data = radius_graph(data)
+        edge_index = radius_graph(p, r=1.1)
+        data = Data(pos=pos,
+                    y=l,
+                    edge_index = edge_index,
+                    relative_vectors = p[edge_index[0]] - p[edge_index[1]],
+                    num_nodes = 4)
 
         graphs.append(data)
 
-    return Batch.from_data_list(graphs)
+    batch = Batch.from_data_list(graphs)
+    batch.pos = batch.pos.view(-1, 3)
+    batch.relative_vectors = batch.relative_vectors.view(-1, 3)
+    
+    return batch 

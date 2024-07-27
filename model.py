@@ -1,11 +1,12 @@
 import torch
+torch.jit.script = lambda x: x
 import torch.nn as nn
 import e3nn
 e3nn.set_optimization_defaults(jit_script_fx=False)
 
 from e3nn import o3
-# from torch_runstats.scatter import scatter_mean
-from utils import scatter_mean
+
+from torch_runstats.scatter import scatter_mean
 
 
 class AtomEmbedding(nn.Module):
@@ -88,12 +89,12 @@ class SimpleNetwork(nn.Module):
                              output_dims = self.output_dims)
 
     def forward(self,
-                numbers: torch.Tensor,
+                labels: torch.Tensor,
                 relative_vectors: torch.Tensor,
                 edge_index: torch.Tensor,
                 num_nodes: int) -> torch.Tensor:
 
-        node_features = self.embed(numbers)
+        node_features = self.embed(labels)
         relative_vectors = relative_vectors
         senders, receivers = edge_index
 
@@ -122,13 +123,11 @@ class SimpleNetwork(nn.Module):
 
 
         # Aggregate the node features back.
-        # print("src", node_features_broadcasted.shape)
-        # print("index", receivers.shape)
-        # print("dim", node_features.shape[0])
         node_features = scatter_mean(
             node_features_broadcasted,
-            receivers,
-            dim = node_features.shape[0]
+            receivers.unsqueeze(-1).expand(-1, node_features_broadcasted.shape[-1]),
+            dim=0,
+            dim_size = node_features.shape[0]
         )
 
         # # Global readout.
@@ -136,5 +135,9 @@ class SimpleNetwork(nn.Module):
         # Filter out 0e
         node_features = self.filter_tp(node_features, self.dummy_input)
 
-        graph_globals = scatter_mean(node_features, output_dim=[num_nodes])
+
+        graph_globals = scatter_mean(node_features,
+                                    torch.zeros(num_nodes, dtype=torch.int64),
+                                    dim=0,
+                                    dim_size=1)
         return self.readout_mlp(graph_globals)
