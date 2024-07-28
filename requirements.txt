@@ -1,6 +1,5 @@
 torch
 e3nn @ git+https://github.com/mitkotak/e3nn@linear_pt2
-torch_scatter @
 torch-geometric
 torch-cluster
-torch_scatter @ https://github.com/rusty1s/pytorch_scatter.git
+torch-scatter @ git+https://github.com/rusty1s/pytorch_scatter.git
