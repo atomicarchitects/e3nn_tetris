@@ -6,7 +6,7 @@ e3nn.set_optimization_defaults(jit_script_fx=False)
 
 from e3nn import o3
 
-from torch_runstats.scatter import scatter_mean
+from torch_scatter import scatter_mean
 
 
 class AtomEmbedding(nn.Module):
@@ -123,9 +123,8 @@ class SimpleNetwork(nn.Module):
         # Aggregate the node features back.
         node_features = scatter_mean(
             node_features_broadcasted,
-            receivers.unsqueeze(-1).expand(-1, node_features_broadcasted.shape[-1]),
-            dim=0,
-            dim_size = node_features.shape[0]
+            receivers.unsqueeze(1).expand(-1, node_features_broadcasted.size(dim=1)),
+            dim=0
         )
 
         # # Global readout.
