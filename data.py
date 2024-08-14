@@ -1,5 +1,6 @@
 import torch
-from torch_geometric.data import Data, DataLoader
+from torch_geometric.data import Data
+from torch_geometric.loader import DataLoader
 from torch_geometric.nn import radius_graph
 
 def get_random_graph(nodes, cutoff) -> Data:
@@ -50,7 +51,7 @@ def get_tetris():
         senders, receivers = edge_index
         
         data = Data(
-            numbers=torch.ones((len(positions),), dtype=torch.int32),  # node features
+            numbers=torch.ones((len(positions),1)),  # node features
             pos=positions,  # node positions
             edge_index=edge_index,  # edge indices
             y=label  # graph label

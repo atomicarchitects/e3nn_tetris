@@ -6,135 +6,126 @@ e3nn.set_optimization_defaults(jit_script_fx=False)
 
 from e3nn import o3
 
-from torch_scatter import scatter_mean
+from torch_scatter import scatter_mean, scatter_sum
 
-
-class AtomEmbedding(nn.Module):
-    """Embeds atomic atomic_numbers into a learnable vector space."""
-
-    def __init__(self, embed_dims: int, max_atomic_number: int):
-        super().__init__()
-        self.embed_dims = embed_dims
-        self.max_atomic_number = max_atomic_number
-        self.embedding = nn.Embedding(num_embeddings=max_atomic_number, embedding_dim=embed_dims)
-
-    def forward(self, atomic_numbers: torch.Tensor) -> torch.Tensor:
-        atom_embeddings = self.embedding(atomic_numbers)
-        return atom_embeddings
-    
-class MLP(nn.Module):
-
-    def __init__(
-        self,
-        input_dims: int,
-        output_dims: int,
-        hidden_dims: int = 32,
-        num_layers: int = 2):
-
-        super(MLP, self).__init__()
-        layers = []
-        for i in range(num_layers - 1):
-            layers.append(nn.Linear(input_dims if i == 0 else hidden_dims, hidden_dims))
-            layers.append(nn.LayerNorm(hidden_dims))
-            layers.append(nn.SiLU())
-        layers.append(nn.Linear(hidden_dims, output_dims))
-        self.model = nn.Sequential(*layers)
-
-    def forward(self, x):
-      return self.model(x)
-
-class SimpleNetwork(nn.Module):
+class Layer(nn.Module):
     """A layer of a simple E(3)-equivariant message passing network."""
-
-    sh_lmax: int = 2
-    lmax: int = 2
-    init_node_features: int = 16
-    max_atomic_number: int = 12
-    num_hops: int = 2
-    output_dims: int = 1
-
+    
+    denominator: int = 1.5
+    
     def __init__(self,
-                relative_vectors_irreps: o3.Irreps,
-                node_features_irreps: o3.Irreps):
+                relative_positions_irreps: o3.Irreps,
+                node_features_irreps: o3.Irreps,
+                target_irreps: o3.Irreps):
+
+      super().__init__()
+      
+      self.tp = o3.FullTensorProduct(relative_positions_irreps,
+                                     node_features_irreps)
+      
+      tp_irreps = self.tp.irreps_out.regroup() + node_features_irreps
+
+      self.linear = o3.Linear(irreps_in=tp_irreps,
+                              irreps_out=target_irreps)
+      
+      self.shortcut = o3.Linear(irreps_in=node_features_irreps,
+                                irreps_out=target_irreps)
+
+    def forward(self,
+                node_features,
+                relative_positions_sh,
+                senders, receivers) -> torch.Tensor:
+    
+        node_features_broadcasted = node_features[senders]
+        
+        # Resnet-style shortct
+        shortcut = self.shortcut(shortcut_aggregated)
+
+        shortcut_aggregated = scatter_mean(
+            node_features_broadcasted,
+            receivers.unsqueeze(1).expand(-1, node_features_broadcasted.size(dim=1)),
+            dim=0,
+            dim_size=node_features.shape[0]
+        )
+    
+        # Tensor product of the relative vectors and the neighbouring node features.
+        tp = self.tp(relative_positions_sh, node_features_broadcasted)
+    
+        # Construct message by appending to existing node_feature 
+        messages = torch.cat([node_features_broadcasted, tp], dim=-1)
+       
+        # Aggregate the node features
+        node_feats = scatter_mean(
+            messages,
+            receivers.unsqueeze(1).expand(-1, messages.size(dim=1)),
+            dim=0,
+            dim_size=node_features.shape[0]
+        )
+        
+        
+        # Normalize
+        node_feats = node_feats / self.denominator
+        
+        # Apply linear
+        node_feats = self.linear(node_feats)
+
+        # Skipping scalar activation for now
+        
+        # Add shortcut to node_features
+        node_features = node_feats + shortcut
+        return node_features
+
+class Model(torch.nn.Module):
+  
+  sh_lmax: int = 3
+
+  def __init__(self):
 
       super().__init__()
 
-      self.embed = AtomEmbedding(self.init_node_features, self.max_atomic_number)
-      self.sph = o3.SphericalHarmonics(irreps_out=o3.Irreps.spherical_harmonics(self.sh_lmax), normalize=True, normalization="norm")
+      node_features_irreps = o3.Irreps("1x0e")
+      relative_positions_irreps = o3.Irreps([(1,(l,(-1)**l)) for l in range(1,self.sh_lmax+1)])
+      self.sph = o3.SphericalHarmonics(
+        irreps_out=relative_positions_irreps,
+        normalize=True, normalization="norm")
       
       
-      # Currently hardcoding 1 layer
+      output_irreps = [o3.Irreps("32x0e+8x1o+8x2e"), o3.Irreps("32x0e+8x1e+8x1o+8x2e+8x2o")] + [o3.Irreps("0o + 7x0e")]
       
-    #   print("node_features_irreps", node_features_irreps)
+      layers = []
+      for target_irreps in output_irreps:
+        layers.append(Layer(
+                      relative_positions_irreps,
+                      node_features_irreps,
+                      target_irreps))
+        node_features_irreps = target_irreps
       
-      self.tp = o3.FullTensorProduct(relative_vectors_irreps.regroup(),
-                                     node_features_irreps.regroup(),
-                                    filter_ir_out=[o3.Irrep(f"{l}e") for l in range(self.lmax+1)] + [o3.Irrep(f"{l}o") for l in range(self.lmax+1)])
-      self.linear = o3.Linear(irreps_in=self.tp.irreps_out.regroup(), irreps_out=self.tp.irreps_out.regroup())
-    #   print("TP+Linear", self.linear.irreps_out)
-      self.mlp = MLP(input_dims =  1, # Since we are inputing the norms will always be (..., 1)
-                     output_dims = self.tp.irreps_out.num_irreps)
-
-
-      self.elementwise_tp = o3.ElementwiseTensorProduct(o3.Irreps(f"{self.tp.irreps_out.num_irreps}x0e"), self.linear.irreps_out.regroup())
-    #   print("node feature broadcasted", self.elementwise_tp.irreps_out)
-
-      # Poor mans filter function (Can already feel the judgement). Replicating irreps_array.filter("0e")
-      self.filter_tp = o3.FullTensorProduct(self.tp.irreps_out.regroup(), o3.Irreps("0e"), filter_ir_out=[o3.Irrep("0e")])
-      self.register_buffer("dummy_input", torch.ones(1))
-
-    #   print("aggregated node features", self.filter_tp.irreps_out)
-
-      self.readout_mlp = MLP(input_dims = self.filter_tp.irreps_out.num_irreps,
-                             output_dims = self.output_dims)
-
-    def forward(self,
-                numbers: torch.Tensor,
-                pos: torch.Tensor,
-                edge_index: torch.Tensor,
-                num_nodes: int) -> torch.Tensor:
-
-        node_features = self.embed(numbers)
-        senders, receivers = edge_index
-        relative_vectors = pos[receivers] - pos[senders]
-
-        relative_vectors_sh = self.sph(relative_vectors)
-        relative_vectors_norm = torch.linalg.norm(relative_vectors, axis=-1, keepdims=True)
-
-
-        # Currently harcoding 1 hop
-
-        # Layer 0
+      self.layers = torch.nn.ModuleList(layers)
+          
+  def forward(self, graphs):
     
-        # Tensor product of the relative vectors and the neighbouring node features.
-        node_features_broadcasted = node_features[senders]
-  
-        tp = self.tp(relative_vectors_sh, node_features_broadcasted)
+    node_features, pos, edge_index, batch, num_nodes = graphs.numbers, graphs.pos, graphs.edge_index, graphs.batch, graphs.num_nodes
+    senders, receivers = edge_index
+    relative_positions= pos[receivers] - pos[senders]
+    
+    # Apply spherical harmonics
+    relative_positions_sh = self.sph(relative_positions)
+    
+    for layer in self.layers:
+      node_features = layer(
+        node_features,
+        relative_positions_sh,
+        senders,
+        receivers,
+      )
 
-
-        # Apply linear
-        tp = self.linear(tp)
-
-        # Simply multiply each irrep by a learned scalar, based on the norm of the relative vector.
-        scalars = self.mlp(relative_vectors_norm)
-        node_features_broadcasted = self.elementwise_tp(scalars, tp)
-
-
-        # Aggregate the node features back.
-        node_features = scatter_mean(
-            node_features_broadcasted,
-            receivers.unsqueeze(1).expand(-1, node_features_broadcasted.size(dim=1)),
-            dim=0
-        )
-
-        # # Global readout.
-
-        # Filter out 0e
-        node_features = self.filter_tp(node_features, self.dummy_input)
-
-
-        graph_globals = scatter_mean(node_features,
-                                    torch.zeros(num_nodes, dtype=torch.int64),
-                                    dim=0,
-                                    dim_size=8)
-        return self.readout_mlp(graph_globals)
+    # Readout logits
+    pred = scatter_sum(
+        node_features,
+        batch,
+        dim=0,
+        dim_size=8)  # [num_graphs, 1 + 7] = [8,8]
+    odd, even1, even2 = pred[:, :1], pred[:, 1:2], pred[:, 2:]
+    logits = torch.concatenate([odd * even1, -odd * even1, even2], dim=1)
+    assert logits.shape == (8, 8)  # [num_graphs, num_classes]
+    return logits
