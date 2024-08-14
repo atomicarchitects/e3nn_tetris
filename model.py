@@ -6,6 +6,7 @@ e3nn.set_optimization_defaults(jit_script_fx=False)
 
 from e3nn import o3
 
+from torch_geometric.data import Data
 from torch_scatter import scatter_mean, scatter_sum
 
 class Layer(nn.Module):
@@ -102,9 +103,13 @@ class Model(torch.nn.Module):
       
       self.layers = torch.nn.ModuleList(layers)
           
-  def forward(self, graphs):
-    
-    node_features, pos, edge_index, batch, num_nodes = graphs.numbers, graphs.pos, graphs.edge_index, graphs.batch, graphs.num_nodes
+  def forward(self,
+              node_features,
+              pos,
+              edge_index,
+              batch):
+  
+    # Passing in graphs make dynamo angry
     senders, receivers = edge_index
     relative_positions= pos[receivers] - pos[senders]
     
