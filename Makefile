@@ -12,7 +12,7 @@ profile:
 	nsys profile --capture-range=cudaProfilerApi --cuda-graph-trace=node --capture-range-end=stop -o profile -f true python train.py
 
 run:
-	./build/inference export/model.so
+	./build/inference ${PWD}/export/model.so
 
 .PHONY: run nsys build clean
 
