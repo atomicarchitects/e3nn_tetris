@@ -2,7 +2,7 @@ import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.functional as F
+import torch.nn.functional as F
 from tqdm.auto import tqdm
 from e3nn import o3
 

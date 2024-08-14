@@ -39,14 +39,14 @@ class Layer(nn.Module):
         node_features_broadcasted = node_features[senders]
         
         # Resnet-style shortct
-        shortcut = self.shortcut(shortcut_aggregated)
-
         shortcut_aggregated = scatter_mean(
             node_features_broadcasted,
             receivers.unsqueeze(1).expand(-1, node_features_broadcasted.size(dim=1)),
             dim=0,
             dim_size=node_features.shape[0]
         )
+                
+        shortcut = self.shortcut(shortcut_aggregated)
     
         # Tensor product of the relative vectors and the neighbouring node features.
         tp = self.tp(relative_positions_sh, node_features_broadcasted)
