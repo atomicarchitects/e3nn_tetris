@@ -6,7 +6,7 @@
 
 ### (Preliminary) Training time comparision with e3nn-jax on RTX A5500
 
-TODO: Need to test out on bigger datasets/models. The throuhgput is roughly the same but there might be some initialization differences that make JAX converge faster.
+TODO: Need to test out on bigger datasets/models. The throughput is roughly the same but there might be some initialization differences that make JAX converge faster.
 
 - e3nn + Torch 2
 
