@@ -14,5 +14,5 @@ profile:
 run:
 	./build/inference ${PWD}/export/model.so
 
-.PHONY: run nsys build clean
+.PHONY: run profile build clean
 
