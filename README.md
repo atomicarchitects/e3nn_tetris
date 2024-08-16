@@ -1,5 +1,8 @@
 ## e3nn_tetris
 
+Depends on https://github.com/e3nn/e3nn/pull/455
+
+
 ### Train
 
 ```python
