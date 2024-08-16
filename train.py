@@ -100,11 +100,15 @@ def train(steps=200):
                 options={"aot_inductor.output_path": os.path.join(os.getcwd(), "export/model.so"),
             })
     
-    print("Traced Shapes")
     print("node_features", graphs.numbers.shape, graphs.numbers.dtype)
     print("pos", graphs.pos.shape, graphs.pos.dtype)
-    print("edge_index", graphs.edge_index.shape, graphs.edge_index.dtype)
-    print("batch", graphs.batch.shape, graphs.batch.dtype)
+    print("edge_index", graphs.edge_index, graphs.edge_index.shape, graphs.edge_index.dtype)
+    print("batch", graphs.batch, graphs.batch.shape, graphs.batch.dtype)
+    
+    runner = torch._C._aoti.AOTIModelContainerRunnerCuda(os.path.join(os.getcwd(), f"export/model.so"), 1, device)
+    outputs_export = runner.run([graphs.numbers,graphs.pos,graphs.edge_index,graphs.batch])
+    print(f"output {outputs_export[0]}")
+        
 
 if __name__ == "__main__":
     train()
