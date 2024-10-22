@@ -11,6 +11,9 @@ from tqdm.auto import tqdm
 from e3nn import o3
 from e3nn.util.jit import prepare
 
+
+torch.manual_seed(0)
+
 # Borrowed from https://github.com/pytorch-labs/gpt-fast/blob/db7b273ab86b75358bd3b014f1f022a19aba4797/generate.py#L16-L18
 torch.set_float32_matmul_precision("high")
 import torch._dynamo.config
@@ -93,21 +96,21 @@ def train(steps=200):
     print(f"final accuracy = {100 * accuracy:.0f}%")
     print(f"training took {time.perf_counter() - wall:.1f}s")
     
-    # Export model
-    so_path = torch._export.aot_compile(
-                model,
-                args = (graphs.numbers,graphs.pos,graphs.edge_index,graphs.batch),
-                options={"aot_inductor.output_path": os.path.join(os.getcwd(), "export/model.so"),
-            })
+    # # Export model
+    # so_path = torch._export.aot_compile(
+    #             model,
+    #             args = (graphs.numbers,graphs.pos,graphs.edge_index,graphs.batch),
+    #             options={"aot_inductor.output_path": os.path.join(os.getcwd(), "export/model.so"),
+    #         })
     
-    print("node_features", graphs.numbers.shape, graphs.numbers.dtype)
-    print("pos", graphs.pos.shape, graphs.pos.dtype)
-    print("edge_index", graphs.edge_index, graphs.edge_index.shape, graphs.edge_index.dtype)
-    print("batch", graphs.batch, graphs.batch.shape, graphs.batch.dtype)
+    # print("node_features", graphs.numbers)
+    # print("pos", graphs.pos)
+    # print("edge_index", graphs.edge_index)
+    # print("batch", graphs.batch)
     
-    runner = torch._C._aoti.AOTIModelContainerRunnerCuda(os.path.join(os.getcwd(), f"export/model.so"), 1, device)
-    outputs_export = runner.run([graphs.numbers,graphs.pos,graphs.edge_index,graphs.batch])
-    print(f"output {outputs_export[0]}")
+    # runner = torch._C._aoti.AOTIModelContainerRunnerCuda(os.path.join(os.getcwd(), f"export/model.so"), 1, device)
+    # outputs_export = runner.run([graphs.numbers,graphs.pos,graphs.edge_index,graphs.batch])
+    # print(f"output {outputs_export[0]}")
         
 
 if __name__ == "__main__":
