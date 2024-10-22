@@ -1,6 +1,6 @@
 ## e3nn_tetris
 
-Depends on https://github.com/e3nn/e3nn/pull/455
+Lets train a simple Nequip Tetris model with e3nn + torch.compile and run inference in C++ !
 
 
 ### Train
