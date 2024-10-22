@@ -124,7 +124,7 @@ output tensor 0.0344 -0.0344 -0.1076 -0.4316 -0.1765 -0.1971 -0.2294 -0.3128
 
 ### (Preliminary) Training time comparision with e3nn-jax on RTX A5500
 
-TODO: Need to test out on bigger datasets/models. The throughput is roughly the same but there might be some initialization differences that make JAX converge faster.
+TODO: Need to test out on bigger datasets/models. The throughput is better in Torch2 currently is better but there might be some initialization differences that make JAX converge faster.
 
 - e3nn + Torch 2
 
