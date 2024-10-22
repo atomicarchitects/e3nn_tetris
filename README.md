@@ -130,23 +130,21 @@ TODO: Need to test out on bigger datasets/models. The throughput is roughly the 
 
 ```python
 compiling...
-W0815 01:47:51.930000 140183613732416 torch/fx/experimental/symbolic_shapes.py:4449] [0/0] xindex is not in var_ranges, defaulting to unknown range.
-initial accuracy = 25%
-compilation took 203.1s
+initial accuracy = 12%
+compilation took 127.5s
 training...
- 66%|██████████████████████████████████████████████████████████████████▋                                  | 132/200 [00:00<00:00, 448.17it/s]
+ 34%|███████████████████████████████████                                                                    | 68/200 [00:00<00:00, 797.43it/s]
 final accuracy = 100%
-training took 0.3s
+training took 0.1s
 ```
 
 - e3nn-jax
 
 ```python
 compiling...
-initial accuracy = 25%
-compilation took 7.1s
+initial accuracy = 12%
+compilation took 5.3s
 training...
- 15%|███████████████▎                                                                                      | 30/200 [00:00<00:00, 473.85it/s]
+ 12%|███████████▋                                                                                     | 24/200 [00:00<00:00, 436.59it/s]
 final accuracy = 100%
-training took 0.1s
 ```
