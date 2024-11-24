@@ -62,10 +62,11 @@ def train(steps=200):
 
     # Dataset
     graphs = get_tetris()
+    # graphs = get_random_graph(n_nodes=50, cutoff=1.5)
     graphs = graphs.to(device=device)
 
     # Compile
-    model = torch.compile(model, fullgraph=True, mode="reduce-overhead")
+    model = torch.compile(model)
 
     wall = time.perf_counter()
     print("compiling...", flush=True)
