@@ -10,6 +10,69 @@ import optax
 from tqdm.auto import tqdm
 
 import e3nn_jax as e3nn
+import cuequivariance_jax as cuex
+import cuequivariance as cue
+import cuequivariance.segmented_tensor_product as stp
+
+
+
+from typing import Sequence, Optional
+import itertools
+
+def full_tensor_product(
+    irreps1: cue.Irreps,
+    irreps2: cue.Irreps,
+    irreps3_filter: Optional[Sequence[cue.Irrep]] = None,
+) -> cue.EquivariantTensorProduct:
+    """
+    subscripts: ``lhs[iu],rhs[jv],output[kuv]``
+
+    Construct a weightless channelwise tensor product descriptor.
+
+    .. currentmodule:: cuequivariance
+
+    Args:
+        irreps1 (Irreps): Irreps of the first operand.
+        irreps2 (Irreps): Irreps of the second operand.
+        irreps3_filter (sequence of Irrep, optional): Irreps of the output to consider.
+
+    Returns:
+        EquivariantTensorProduct: Descriptor of the full tensor product.
+    """
+    G = irreps1.irrep_class
+
+    if irreps3_filter is not None:
+        irreps3_filter = into_list_of_irrep(G, irreps3_filter)
+
+    d = stp.SegmentedTensorProduct.from_subscripts("iu,jv,kuv+ijk")
+
+    for mul, ir in irreps1:
+        d.add_segment(0, (ir.dim, mul))
+    for mul, ir in irreps2:
+        d.add_segment(1, (ir.dim, mul))
+
+    irreps3 = []
+
+    for (i1, (mul1, ir1)), (i2, (mul2, ir2)) in itertools.product(
+        enumerate(irreps1), enumerate(irreps2)
+    ):
+        for ir3 in ir1 * ir2:
+            # for loop over the different solutions of the Clebsch-Gordan decomposition
+            for cg in cue.clebsch_gordan(ir1, ir2, ir3):
+                d.add_path(i1, i2, None, c=cg)
+
+                irreps3.append((mul1 * mul2, ir3))
+
+    irreps3 = cue.Irreps(G, irreps3)
+    irreps3, perm, inv = irreps3.sort()
+    d = d.permute_segments(2, inv)
+
+    d = d.normalize_paths_for_operand(-1)
+    return cue.EquivariantTensorProduct(
+        d,
+        [irreps1, irreps2, irreps3],
+        layout=cue.ir_mul,
+    )
 
 
 def tetris() -> jraph.GraphsTuple:
@@ -47,31 +110,26 @@ def tetris() -> jraph.GraphsTuple:
 
 
 class Layer(flax.linen.Module):
-    target_irreps: e3nn.Irreps
+    target_irreps: cue.Irreps
     denominator: float
     sh_lmax: int = 3
 
     @flax.linen.compact
     def __call__(self, graphs, positions):
-        target_irreps = e3nn.Irreps(self.target_irreps)
+        target_irreps = cue.Irreps("O3", self.target_irreps)
 
         def update_edge_fn(edge_features, sender_features, receiver_features, globals):
-            sh = e3nn.spherical_harmonics(
-                list(range(1, self.sh_lmax + 1)),
-                positions[graphs.receivers] - positions[graphs.senders],
-                True,
-            )
-            return e3nn.concatenate(
-                [sender_features, e3nn.tensor_product(sender_features, sh)]
+            sh = cuex.spherical_harmonics(list(range(1, self.sh_lmax + 1)), positions[graphs.receivers] - positions[graphs.senders], True)
+            tp = cuex.equivariant_tensor_product(full_tensor_product(sender_features.irreps(), sh.irreps()))(sender_features, sh)
+            return cuex.concatenate(
+                [sender_features, tp]
             ).regroup()
 
         def update_node_fn(node_features, sender_features, receiver_features, globals):
             node_feats = receiver_features / self.denominator
-            node_feats = e3nn.flax.Linear(target_irreps, name="linear_pre")(node_feats)
-            node_feats = e3nn.scalar_activation(node_feats)
-            node_feats = e3nn.flax.Linear(target_irreps, name="linear_post")(node_feats)
-            shortcut = e3nn.flax.Linear(
-                node_feats.irreps, name="shortcut", force_irreps_out=True
+            node_feats = cuex.flax_linen.Linear(target_irreps, layout=cue.ir_mul)(node_feats)
+            shortcut = cuex.flax_linen.Linear(
+                node_feats.irreps(), layout=cue.ir_mul, force=True
             )(node_features)
             return shortcut + node_feats
 
@@ -81,8 +139,8 @@ class Layer(flax.linen.Module):
 class Model(flax.linen.Module):
     @flax.linen.compact
     def __call__(self, graphs):
-        positions = e3nn.IrrepsArray("1o", graphs.nodes)
-        graphs = graphs._replace(nodes=jnp.ones((len(positions), 1)))
+        positions = cuex.IrrepsArray(cue.Irreps("O3", "1o"), graphs.nodes, layout=cue.ir_mul)
+        graphs = graphs._replace(nodes=cuex.IrrepsArray(cue.Irreps("O3", "0e"), jnp.ones((positions.shape[0], 1)), layout=cue.ir_mul))
 
         layers = 2 * ["32x0e + 32x0o + 8x1e + 8x1o + 8x2e + 8x2o"] + ["0o + 7x0e"]
 
