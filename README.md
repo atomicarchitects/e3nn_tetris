@@ -133,7 +133,7 @@ compiling...
 initial accuracy = 12%
 compilation took 127.5s
 training...
- 34%|███████████████████████████████████                                                                    | 68/200 [00:00<00:00, 797.43it/s]
+ 34%|███████████████████████████████████ | 68/200 [00:00<00:00, 797.43it/s]
 final accuracy = 100%
 training took 0.1s
 ```
@@ -145,6 +145,6 @@ compiling...
 initial accuracy = 12%
 compilation took 5.3s
 training...
- 12%|███████████▋                                                                                     | 24/200 [00:00<00:00, 436.59it/s]
+ 12%|███████████▋ | 24/200 [00:00<00:00, 635.90it/s]
 final accuracy = 100%
 ```
