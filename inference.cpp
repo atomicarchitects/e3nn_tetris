@@ -14,10 +14,21 @@ int main(int argc, char *argv[]) {
     runner = new torch::inductor::AOTIModelContainerRunnerCuda(model_path, 1);
     std::vector<torch::Tensor> inputs = {
         // node_features
-        torch::randn({32,1}, torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA)),
+
+        torch::ones({32, 1}, torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA)),
+
 
         // pos
-        torch::randn({32,3}, torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA)),
+        torch::tensor({
+            {0., 0., 0.}, {0., 0., 1.}, {1., 0., 0.}, {1., 1., 0.},
+            {1., 1., 1.}, {1., 1., 2.}, {2., 1., 1.}, {2., 0., 1.},
+            {0., 0., 0.}, {1., 0., 0.}, {0., 1., 0.}, {1., 1., 0.},
+            {0., 0., 0.}, {0., 0., 1.}, {0., 0., 2.}, {0., 0., 3.},
+            {0., 0., 0.}, {0., 0., 1.}, {0., 1., 0.}, {1., 0., 0.},
+            {0., 0., 0.}, {0., 0., 1.}, {0., 0., 2.}, {0., 1., 0.},
+            {0., 0., 0.}, {0., 0., 1.}, {0., 0., 2.}, {0., 1., 1.},
+            {0., 0., 0.}, {1., 0., 0.}, {1., 1., 0.}, {2., 1., 0.}
+        }, torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA)),
 
         // edge_index
         torch::tensor({
