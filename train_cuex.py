@@ -195,7 +195,8 @@ def train(steps=200):
     # compile jit
     wall = time.perf_counter()
     print("compiling...", flush=True)
-    _, _, accuracy = update_fn(params, opt_state, graphs)
+    for _ in range(3):
+        _, _, accuracy = update_fn(params, opt_state, graphs)
     print(f"initial accuracy = {100 * accuracy:.0f}%", flush=True)
     print(f"compilation took {time.perf_counter() - wall:.1f}s")
 
@@ -204,7 +205,7 @@ def train(steps=200):
     print("training...", flush=True)
     for _ in tqdm(range(steps)):
         start = time.time()
-        params, opt_state, accuracy = update_fn(params, opt_state, graphs)
+        params, opt_state, accuracy = jax.block_until_ready(update_fn(params, opt_state, graphs))
         timings.append(time.time() - start)
 
     print(f"final accuracy = {100 * accuracy:.0f}%")

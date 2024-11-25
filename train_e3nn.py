@@ -217,7 +217,8 @@ def train(steps=200):
             libcudart.cudaProfilerStart()
 
         loss, accuracy = update_fn(model, opt, graphs)
-        
+        torch.cuda.synchronize()
+
         timings.append(time.time() - start)
         if step == 30:
             libcudart.cudaProfilerStop()
