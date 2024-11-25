@@ -2,6 +2,8 @@ import time
 import os
 import nvtx
 
+import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -284,22 +286,21 @@ def train(steps=200):
     libcudart = cdll.LoadLibrary('libcudart.so')
 
     # Train
-    wall = time.perf_counter()
+    timings = []
     print("training...", flush=True)
     for step in tqdm(range(steps)):
+        start = time.time()
         if step == 20:
             libcudart.cudaProfilerStart()
 
         loss, accuracy = update_fn(model, opt, graphs)
         
+        timings.append(time.time() - start)
         if step == 30:
             libcudart.cudaProfilerStop()
 
-        if accuracy == 1.0:
-            break
-
     print(f"final accuracy = {100 * accuracy:.0f}%")
-    print(f"training took {time.perf_counter() - wall:.1f}s")
+    print(f"Training time/step {np.mean(timings[20:])*1000:.3f} ms")
     
     # # Export model
     # so_path = torch._export.aot_compile(

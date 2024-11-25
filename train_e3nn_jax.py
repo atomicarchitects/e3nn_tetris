@@ -5,6 +5,7 @@ import time
 import flax
 import jax
 import jax.numpy as jnp
+import numpy as np
 import jraph
 import optax
 from tqdm.auto import tqdm
@@ -199,16 +200,15 @@ def train(steps=200):
     print(f"compilation took {time.perf_counter() - wall:.1f}s")
 
     # Train
-    wall = time.perf_counter()
+    timings = []
     print("training...", flush=True)
     for _ in tqdm(range(steps)):
+        start = time.time()
         params, opt_state, accuracy = update_fn(params, opt_state, graphs)
-
-        if accuracy == 1.0:
-            break
+        timings.append(time.time() - start)
 
     print(f"final accuracy = {100 * accuracy:.0f}%")
-    print(f"training took {time.perf_counter() - wall:.1f}s")
+    print(f"Training time/step {np.mean(timings[20:])*1000:.3f} ms")
 
 
 if __name__ == "__main__":
