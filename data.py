@@ -3,13 +3,13 @@ from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 from torch_geometric.nn import radius_graph
 
-def get_random_graph(nodes, cutoff) -> Data:
+def get_random_graph(n_nodes, cutoff) -> Data:
 
-    positions = torch.randn(nodes, 3)
+    positions = torch.randn(n_nodes, 3)
 
     distance_matrix = positions[:, None, :] - positions[None, :, :]
     distance_matrix = torch.linalg.norm(distance_matrix, dim=-1)
-    assert distance_matrix.shape == (nodes, nodes)
+    assert distance_matrix.shape == (n_nodes, n_nodes)
 
     senders, receivers = torch.nonzero(distance_matrix < cutoff).T
 
@@ -20,11 +20,11 @@ def get_random_graph(nodes, cutoff) -> Data:
 
     # Create a PyTorch Geometric Data object
     graph = Data(
-        pos = positions,
-        relative_vectors = positions[receivers] - positions[senders],
-        y=z,
-        edge_index=edge_index,
-        num_nodes=len(positions)
+        pos = positions, # node positions
+        relative_vectors = positions[receivers] - positions[senders], # node relative positions
+        y=z, # graph label
+        edge_index=edge_index, # edge indices
+        numbers=torch.ones((len(positions),1)),  # node features
     )
 
     return graph
